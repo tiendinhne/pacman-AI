@@ -1,0 +1,117 @@
+import os
+import time
+from Astar import astar
+from Heristics import (
+    heuristic_simple,
+    heuristic_food_distance,
+    heuristic_food_mst
+)
+from map_loader import (
+    load_map,
+    _calculate_ghost_paths,
+    is_goal,
+    successors,
+    State
+)
+
+# === Cấu hình thư mục bản đồ ===
+MAPS_FOLDER = "maps"
+MAP_FILES = ["task02_pacman_example_map.txt"]
+
+# === Danh sách heuristic cần thử nghiệm ===
+HEURISTICS = {
+    "Simple": heuristic_simple,
+    "Food Distance": heuristic_food_distance,
+    "Food MST": heuristic_food_mst
+}
+
+
+def run_on_map(map_path):
+    """Chạy thử nghiệm A* với các heuristic khác nhau trên 1 bản đồ."""
+    print(f"\n=== Đang chạy thử nghiệm trên bản đồ: {map_path} ===")
+
+    # 1️⃣ Load bản đồ
+    (grid, start_pos, pies, ghosts, exit_pos,
+     corners, foods_map, foods_list) = load_map(map_path)
+    ghost_paths = _calculate_ghost_paths(ghosts, grid)
+
+    # Tạo tập hợp các tường để phục vụ BFS trong heuristic
+    walls_set = {(y, x) for y, row in enumerate(grid) for x, ch in enumerate(row) if ch == '%'}
+
+    # 2️⃣ Tạo state khởi đầu
+    initial_food_mask = (1 << len(foods_list)) - 1
+    start_state = State(start_pos, 0, initial_food_mask, 0)
+
+    results = {}
+
+    #  Lặp qua từng heuristic
+    for hname, heuristic_func in HEURISTICS.items():
+        print(f"\n=== Running A* with heuristic: {hname} ===")
+        start_time = time.time()
+
+        # Gói hàm kiểm tra goal
+        def wrapped_is_goal(state):
+            return is_goal(state, exit_pos)
+
+        # Gói hàm sinh successor
+        def wrapped_successors(state):
+            succs = successors(state, grid, pies, ghosts, ghost_paths, foods_map, corners)
+            return [(s, cost) for (_, s, cost) in succs]
+
+        # Gói heuristic tương ứng
+        if hname == "Simple":
+            heuristic_fn = heuristic_func
+        else:
+            heuristic_fn = lambda s: heuristic_func(s, foods_list, walls_set)
+
+        #  Gọi thuật toán A*
+        path, stats = astar(start_state, wrapped_is_goal, wrapped_successors, heuristic_fn)
+        elapsed = time.time() - start_time
+
+        #  In kết quả chi tiết
+        if path:
+            print(f"  ✓ Path found with {len(path)} steps.")
+        else:
+            print("  ✗ No path found!")
+
+        print(f"  ➤ Nodes expanded: {stats['nodes_expanded']}")
+        print(f"  ➤ Max frontier size: {stats['max_frontier_size']}")
+        print(f"  ➤ Time: {elapsed:.3f}s")
+
+        results[hname] = {
+            "nodes_expanded": stats["nodes_expanded"],
+            "max_frontier_size": stats["max_frontier_size"],
+            "path_length": len(path) if path else 0,
+            "time": elapsed
+        }
+
+    return results
+
+
+def run_all_experiments():
+    summary = {}
+
+    for map_name in MAP_FILES:
+        map_path = os.path.join(MAPS_FOLDER, map_name)
+        if not os.path.exists(map_path):
+            print(f"Lỗi: Không tìm thấy bản đồ {map_path}")
+            continue
+
+        map_results = run_on_map(map_path)
+        summary[map_name] = map_results
+
+    #  In bảng tổng hợp hiệu năng
+    print("\n=== TỔNG KẾT HIỆU NĂNG ===")
+    for map_name, map_results in summary.items():
+        print(f"\n>>> {map_name}")
+        print("-" * 70)
+        print(f"{'Heuristic':15} | {'Nodes':>8} | {'Frontier':>8} | {'Steps':>6} | {'Time':>7}")
+        print("-" * 70)
+        for hname, stats in map_results.items():
+            print(f"{hname:15} | {stats['nodes_expanded']:8} | {stats['max_frontier_size']:8} | "
+                  f"{stats['path_length']:6} | {stats['time']:.3f}s")
+
+
+# ---  Entry Point ---
+if __name__ == "__main__":
+    run_all_experiments()

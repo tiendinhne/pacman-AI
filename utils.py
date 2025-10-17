@@ -1,23 +1,59 @@
 
-# utils.py
-import pygame
+from collections import deque
+import heapq
 
-def load_assets():
-    assets = {}
-    try:
-        assets["%"]= pygame.image.load('assets/wall.png')
-        assets["P"]= pygame.image.load('assets/pacman.png')
-        assets["."]= pygame.image.load('assets/food.png')
-        assets["G"]= pygame.image.load('assets/blue_ghost.png')
-        assets["E"]= pygame.image.load('assets/coint_path.png')
-        assets["O"]= pygame.image.load('assets/apple.png')
-        assets[" "]= pygame.Surface((24, 24))  # empty tile
-    except Exception as e:
-        print("Lỗi khi load ảnh:", e)
-    return assets
+def bfs_distance(start, goal, walls):
+    """Tính khoảng cách ngắn nhất giữa hai điểm trên lưới (bỏ qua tường)."""
+    if start == goal:
+        return 0
 
-def draw_grid(screen, maze, assets, tile_size):
-    for y, row in enumerate(maze.grid):
-        for x, cell in enumerate(row):
-            sprite = assets.get(cell, assets[' '])
-            screen.blit(sprite, (x * tile_size, y * tile_size))
+    queue = deque([(start, 0)])
+    visited = {start}
+
+    while queue:
+        (x, y), dist = queue.popleft()
+        for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+            nx, ny = x + dx, y + dy
+            next_pos = (nx, ny)
+
+            if next_pos in visited or next_pos in walls:
+                continue
+            if next_pos == goal:
+                return dist + 1
+
+            queue.append((next_pos, dist + 1))
+            visited.add(next_pos)
+
+    return float('inf')
+
+
+def compute_mst_weight(nodes, walls):
+    """Tính tổng trọng số của Minimum Spanning Tree (Prim)."""
+    if not nodes:
+        return 0
+
+    start = nodes[0]
+    visited = {start}
+    edges = []
+
+    for node in nodes[1:]:
+        dist = bfs_distance(start, node, walls)
+        heapq.heappush(edges, (dist, node))
+
+    total_weight = 0
+
+    while len(visited) < len(nodes) and edges:
+        dist, next_node = heapq.heappop(edges)
+        if next_node in visited:
+            continue
+
+        total_weight += dist
+        visited.add(next_node)
+
+        for node in nodes:
+            if node not in visited:
+                new_dist = bfs_distance(next_node, node, walls)
+                heapq.heappush(edges, (new_dist, node))
+
+    return total_weight
+

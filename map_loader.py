@@ -1,3 +1,4 @@
+
 import os
 from dataclasses import dataclass
 from typing import Tuple, Set, List, Dict
@@ -35,65 +36,83 @@ class State:
     total_steps: int
 
 def load_map(path: str) -> Tuple[
-    List[str], Tuple[int, int], Set[Tuple[int, int]], List[Tuple[int, int]],
+    List[List[str]], Tuple[int, int], Set[Tuple[int, int]], List[Tuple[int, int]],
     Tuple[int, int], Set[Tuple[int, int]], Dict[Tuple[int, int], int], List[Tuple[int, int]]
 ]:
     """
-    Đọc file bản đồ, phân tích và tạo các cấu trúc dữ liệu cần thiết cho game.
+    Đọc file bản đồ .txt và trả về:
+      grid (List[List[str]]), start_pos, pies_set, initial_ghosts,
+      exit_pos, corners, foods_map, foods_list
 
-    Hàm này cũng chịu trách nhiệm tạo các cấu trúc ánh xạ cần thiết để
-    chuyển đổi giữa tọa độ thức ăn và chỉ số bit trong bitmask.
-
-    Args:
-        path (str): Đường dẫn đến file bản đồ .txt.
-
-    Returns:
-        Một tuple chứa:
-        - grid (List[str]): Bản đồ dưới dạng lưới 2D.
-        - start_pos (Tuple[int, int]): Tọa độ (y, x) của Pacman.
-        - pies_set (Set[Tuple[int, int]]): Set các tọa độ bánh.
-        - initial_ghosts (List[Tuple[int, int]]): List các tọa độ ban đầu của ma.
-        - exit_pos (Tuple[int, int]): Tọa độ (y, x) của cổng thoát.
-        - foods_map (Dict[Tuple[int, int], int]): Ánh xạ từ tọa độ food -> index bit.
-        - foods_list (List[Tuple[int, int]]): Ánh xạ từ index bit -> tọa độ food.
+    Lưu ý: ký tự theo quy ước:
+      WALL = '%', PACMAN = 'P', FOOD = '.', PIE = 'o' (hỗ trợ 'O' tạm thời),
+      GHOST = 'G', EXIT = 'E', EMPTY = ' '
     """
-    grid, start_pos, pies_set, initial_ghosts, exit_pos = [], None, set(), [], None
-    temp_foods = []
+    grid: List[List[str]] = []
+    start_pos = None
+    pies_set: Set[Tuple[int,int]] = set()
+    initial_ghosts: List[Tuple[int,int]] = []
+    exit_pos = None
+    temp_foods: List[Tuple[int,int]] = []
 
     if not os.path.exists(path):
         raise FileNotFoundError(f"Không tìm thấy file bản đồ tại: {path}")
 
-    # Đọc tất cả các dòng và loại bỏ các dòng trống
+    # --- Đọc file, giữ nguyên khoảng trắng trong dòng ---
     with open(path, 'r', encoding='utf-8') as f:
         for y, line in enumerate(f):
-            clean_line = line.rstrip('\n')
-            grid.append(list(clean_line))
-            for x, char in enumerate(clean_line):
+            clean_line = line.rstrip('\n')  # giữ khoảng trắng nếu có
+            row = list(clean_line)
+            grid.append(row)
+            for x, ch in enumerate(row):
                 pos = (y, x)
-                if char == PACMAN: start_pos = pos
-                elif char == FOOD: temp_foods.append(pos)
-                elif char == PIE: pies_set.add(pos)
-                elif char == GHOST: initial_ghosts.append(pos)
-                elif char == EXIT: exit_pos = pos
+                if ch == PACMAN:
+                    start_pos = pos
+                elif ch == FOOD:
+                    temp_foods.append(pos)
+                elif ch == PIE or ch == 'O':   # chấp nhận tạm 'O' nếu file dùng in hoa
+                    pies_set.add(pos)
+                elif ch == GHOST:
+                    initial_ghosts.append(pos)
+                elif ch == EXIT:
+                    exit_pos = pos
+                # WALL và EMPTY không cần xử lý ở đây
 
-    if start_pos is None: raise ValueError("Bản đồ thiếu vị trí Pacman ('P').")
-    if exit_pos is None: raise ValueError("Bản đồ thiếu cổng thoát ('E').")
+    if not grid:
+        raise ValueError("Bản đồ rỗng.")
 
-    # Xác định 4 góc bản đồ (giả định có tường bao quanh)
+    # --- Chuẩn hóa: đảm bảo mọi hàng có cùng chiều dài ---
+    max_width = max(len(row) for row in grid)
+    for row in grid:
+        if len(row) < max_width:
+            row.extend([EMPTY] * (max_width - len(row)))
+
     height = len(grid)
-    width = len(grid[0])
-    corners = {
-        (1, 1), (1, width - 2),
-        (height - 2, 1), (height - 2, width - 2)
-    }
+    width = max_width
 
-    # Sắp xếp food để đảm bảo index của bitmask luôn nhất quán
+    # Kiểm tra tồn tại Pacman & Exit
+    if start_pos is None:
+        raise ValueError("Bản đồ thiếu vị trí Pacman ('P').")
+    if exit_pos is None:
+        raise ValueError("Bản đồ thiếu cổng thoát ('E').")
+
+    # --- Tính 4 góc (dùng cho teleport) ---
+    # giả định có "tường" bao quanh → góc hợp lệ nằm ở (1,1), (1,width-2), ...
+    corners: Set[Tuple[int,int]] = set()
+    if height >= 3 and width >= 3:
+        corners = {
+            (1, 1), (1, width - 2),
+            (height - 2, 1), (height - 2, width - 2)
+        }
+
+    # Sắp xếp danh sách food để index bitmask ổn định
     temp_foods.sort()
     foods_list = temp_foods
     foods_map = {pos: i for i, pos in enumerate(foods_list)}
 
     return (grid, start_pos, pies_set, initial_ghosts, exit_pos,
             corners, foods_map, foods_list)
+
 
 
 def _calculate_ghost_paths(
@@ -136,51 +155,84 @@ def is_goal(state: State, exit_pos: Tuple[int, int]) -> bool:
 
 
 def successors(
-    state: State, grid: List[str], pies_set: Set[Tuple[int, int]],
+    state: State, grid: List[List[str]], pies_set: Set[Tuple[int, int]],
     initial_ghosts: List[Tuple[int, int]],
     ghost_paths: Dict[Tuple[int, int], List[Tuple[int, int]]],
     foods_map: Dict[Tuple[int, int], int],
-    corners: Set[Tuple[int, int]] # Thêm corners làm tham số
+    corners: Set[Tuple[int, int]]
 ) -> List[Tuple[str, State, int]]:
-    """Sinh ra tất cả các trạng thái kế tiếp hợp lệ, bao gồm cả Teleport."""
+    """
+    Sinh các trạng thái kế tiếp hợp lệ. Trả về list các tuple:
+      (action_str, new_state, cost)
+
+    An toàn với mọi kích thước hàng: luôn kiểm tra biên trước khi index grid[y][x].
+    """
     successors_list = []
     actions = {'UP': (-1, 0), 'DOWN': (1, 0), 'LEFT': (0, -1), 'RIGHT': (0, 1)}
 
+    rows = len(grid)
     (y, x) = state.pos
     next_step = state.total_steps + 1
     ghosts_next_positions = get_ghost_positions(next_step, initial_ghosts, ghost_paths)
 
-    # --- Logic di chuyển 4 hướng ---
+    # --- Di chuyển 4 hướng ---
     for action, (dy, dx) in actions.items():
-        new_pos = (y + dy, x + dx)
+        new_y, new_x = y + dy, x + dx
+        new_pos = (new_y, new_x)
 
-        if grid[new_pos[0]][new_pos[1]] == WALL and state.pie_time == 0: continue
-        if state.pie_time == 0 and new_pos in ghosts_next_positions: continue
+        # BOUNDS CHECK: kiểm tra chỉ số hàng và cột trước khi truy cập grid
+        if not (0 <= new_y < rows):
+            continue
+        if not (0 <= new_x < len(grid[new_y])):
+            continue
 
+        # Nếu là tường và không có pie -> bỏ qua
+        if grid[new_y][new_x] == WALL and state.pie_time == 0:
+            continue
+
+        # Va chạm ma (nếu không có pie)
+        if state.pie_time == 0 and new_pos in ghosts_next_positions:
+            continue
+
+        # Cập nhật pie_time
         new_pie_time = max(0, state.pie_time - 1)
-        if new_pos in pies_set: new_pie_time = PIE_DURATION
+        if new_pos in pies_set:
+            new_pie_time = PIE_DURATION
 
+        # Cập nhật foods_mask (bitmask)
         new_foods_mask = state.foods_mask
         food_index = foods_map.get(new_pos)
-        if food_index is not None and (state.foods_mask >> food_index) & 1:
-            new_foods_mask &= ~(1 << food_index)
+        if food_index is not None and ((state.foods_mask >> food_index) & 1):
+            new_foods_mask = state.foods_mask & ~(1 << food_index)
 
         new_state = State(new_pos, new_pie_time, new_foods_mask, next_step)
         successors_list.append((action, new_state, 1))
 
-    # --- Logic dịch chuyển góc (Teleport) MỚI ---
+    # --- Teleport giữa các góc ---
     if state.pos in corners:
         for target_corner in corners:
-            if state.pos == target_corner: continue # Không dịch chuyển tới chính nó
+            if state.pos == target_corner:
+                continue
 
-            # Logic va chạm ma tại điểm đến
-            if state.pie_time == 0 and target_corner in ghosts_next_positions: continue
+            ty, tx = target_corner
+            # kiểm tra target corner hợp lệ trong grid
+            if not (0 <= ty < rows and 0 <= tx < len(grid[ty])):
+                continue
 
-            # Logic ăn pie/food tại điểm đến không được áp dụng cho teleport
+            # Nếu có ma ở điểm đến và không có pie -> bỏ qua
+            if state.pie_time == 0 and target_corner in ghosts_next_positions:
+                continue
+
+            # pie_time giảm 1 (theo thiết kế hiện tại)
             new_pie_time = max(0, state.pie_time - 1)
             new_foods_mask = state.foods_mask
 
             new_state = State(target_corner, new_pie_time, new_foods_mask, next_step)
+
+            # tránh duplicate khi teleport trùng với move bình thường
+            if any(s[1].pos == target_corner for s in successors_list):
+                continue
+
             successors_list.append((f'TELEPORT to {target_corner}', new_state, 1))
 
     return successors_list
@@ -264,4 +316,5 @@ if __name__ == '__main__':
         print(f"Vị trí cổng thoát sau khi xoay: {rotated_exit}")
 
     except (FileNotFoundError, ValueError) as e:
+
         print(f"Lỗi: {e}")
