@@ -115,31 +115,23 @@ def load_map(path: str) -> Tuple[
 
 
 
-def _calculate_ghost_paths(initial_ghosts, grid):
+def _calculate_ghost_paths(
+    initial_ghosts: List[Tuple[int, int]], grid: List[str]
+) -> Dict[Tuple[int, int], List[Tuple[int, int]]]:
+    """Hàm hỗ trợ: Tiền tính toán lộ trình tuần tra ngang cho mỗi ma."""
     paths = {}
     for start_pos in initial_ghosts:
+        path = [start_pos]
         y, x = start_pos
-        path = []
-
-        # Di chuyển sang trái
-        left = []
-        for i in range(x - 1, -1, -1):
-            if grid[y][i] == WALL: break
-            left.append((y, i))
-
         # Di chuyển sang phải
-        right = []
         for i in range(x + 1, len(grid[0])):
             if grid[y][i] == WALL: break
-            right.append((y, i))
-
-        # Tạo đường tuần tra: trái → start → phải → quay lại
-        full_path = left[::-1] + [start_pos] + right + right[::-1] + [start_pos] + left
-        if len(full_path) > 1:
-            paths[start_pos] = full_path
-        #else: Ghost tại {start_pos} không có đường tuần tra.
+            path.append((y, i))
+        # Di chuyển ngược lại sang trái
+        for i in range(len(path) - 2, 0, -1):
+            path.append(path[i])
+        paths[start_pos] = path
     return paths
-
 
 def get_ghost_positions(
     step: int,

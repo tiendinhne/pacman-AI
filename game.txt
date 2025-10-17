@@ -39,6 +39,7 @@ class GameUI:
 
         label = self.font.render(f"MODE: {game_mode.upper()}", True, (255, 255, 255))
         label_rect = label.get_rect(center=self.mode_button_rect.center)
+        self.screen.blit(label, label_rect)
 
         mouse_pos = pygame.mouse.get_pos()
         is_hovered = self.mode_button_rect.collidepoint(mouse_pos)
@@ -66,31 +67,32 @@ class GameUI:
                     self.screen.blit(self.wall_img, (x*TILE_SIZE, y*TILE_SIZE))
 
         for fx, fy in foods:
-            radius = 3
-            color =  (255, 255, 255)
+            radius = 6 if (fx, fy) in corners else 3
+            color = (255, 255, 0) if radius == 6 else (255, 255, 255)
             pygame.draw.circle(self.screen, color, (fy*TILE_SIZE+12, fx*TILE_SIZE+12), radius)
 
         for px, py in pies:
-            pygame.draw.circle(self.screen, (190, 215, 75), (py*TILE_SIZE+12, px*TILE_SIZE+12), 6)
+            pygame.draw.circle(self.screen, (0, 255, 255), (py*TILE_SIZE+12, px*TILE_SIZE+12), 6)
 
         ex, ey = exit_pos
         pygame.draw.rect(self.screen, (0, 255, 0), (ey*TILE_SIZE, ex*TILE_SIZE, TILE_SIZE, TILE_SIZE))
 
-        for i in range(min(4, len(ghost_positions))):
-            gx, gy = ghost_positions[i]
-            ghost_img = self.ghost_imgs[i]  # mỗi ghost giữ đúng màu
+        for i, (gx, gy) in enumerate(ghost_positions):
+            ghost_img = self.ghost_imgs[i % 4]
             self.screen.blit(ghost_img, (gy*TILE_SIZE, gx*TILE_SIZE))
 
         self.pacman_sprite.draw(self.screen, pacman_pos)
         self.pacman_sprite.update()
 
         score_text = self.font.render(f"SCORE: {steps}", True, (255, 255, 255))
-        highscore_text = self.font.render(f"HIGHSCORE: ..", True, (255, 255, 255))
+        highscore_text = self.font.render(f"HIGHSCORE: ????? ", True, (255, 255, 255))
         pie_text = self.font.render(f"PIE: {pie_time} | FOODS LEFT: {len(foods)}", True, (255, 255, 255))
 
         self.screen.blit(score_text, (10, self.height * TILE_SIZE + 10 ))
         self.screen.blit(highscore_text, (200, self.height * TILE_SIZE + 10))
         self.screen.blit(pie_text, (400, self.height * TILE_SIZE + 10))
+        # mode_text = self.font.render(f"MODE: {game_mode.upper()}", True, (255, 255, 255))
+        # self.screen.blit(mode_text, (600, self.height * TILE_SIZE + 5))
         self.draw_mode_button(game_mode)
-        self.font_big = pygame.font.Font("assets/fonts/PressStart2P.ttf", 36)
+
         pygame.display.flip()

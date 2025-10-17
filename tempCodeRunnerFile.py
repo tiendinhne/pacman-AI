@@ -1,2 +1,2 @@
-mode_text = self.font.render(f"MODE: {game_mode.upper()}", True, (255, 255, 255))
-        # self.screen.blit(mode_text, (600, self.height * TILE_SIZE + 5))
+    ghost_positions_raw = get_ghost_positions(current_state.total_steps, ghosts, ghost_paths)
+    ghost_positions = list(ghost_positions_raw)  # giữ thứ tự
