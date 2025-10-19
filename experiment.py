@@ -30,7 +30,7 @@ def run_on_map(map_path):
     """Chạy thử nghiệm A* với các heuristic khác nhau trên 1 bản đồ."""
     print(f"\n=== Đang chạy thử nghiệm trên bản đồ: {map_path} ===")
 
-    # 1️⃣ Load bản đồ
+    # 1 Load bản đồ
     (grid, start_pos, pies, ghosts, exit_pos,
      corners, foods_map, foods_list) = load_map(map_path)
     ghost_paths = _calculate_ghost_paths(ghosts, grid)
@@ -38,7 +38,7 @@ def run_on_map(map_path):
     # Tạo tập hợp các tường để phục vụ BFS trong heuristic
     walls_set = {(y, x) for y, row in enumerate(grid) for x, ch in enumerate(row) if ch == '%'}
 
-    # 2️⃣ Tạo state khởi đầu
+    # 2 Tạo state khởi đầu
     initial_food_mask = (1 << len(foods_list)) - 1
     start_state = State(start_pos, 0, initial_food_mask, 0)
 
@@ -74,9 +74,9 @@ def run_on_map(map_path):
         else:
             print("  ✗ No path found!")
 
-        print(f"  ➤ Nodes expanded: {stats['nodes_expanded']}")
-        print(f"  ➤ Max frontier size: {stats['max_frontier_size']}")
-        print(f"  ➤ Time: {elapsed:.3f}s")
+        print(f"  - Nodes expanded: {stats['nodes_expanded']}")
+        print(f"  - Max frontier size: {stats['max_frontier_size']}")
+        print(f"  - Time: {elapsed:.3f}s")
 
         results[hname] = {
             "nodes_expanded": stats["nodes_expanded"],
@@ -87,31 +87,30 @@ def run_on_map(map_path):
 
     return results
 
+# def run_all_experiments():
+#     summary = {}
 
-def run_all_experiments():
-    summary = {}
+#     for map_name in MAP_FILES:
+#         map_path = os.path.join(MAPS_FOLDER, map_name)
+#         if not os.path.exists(map_path):
+#             print(f"Lỗi: Không tìm thấy bản đồ {map_path}")
+#             continue
 
-    for map_name in MAP_FILES:
-        map_path = os.path.join(MAPS_FOLDER, map_name)
-        if not os.path.exists(map_path):
-            print(f"Lỗi: Không tìm thấy bản đồ {map_path}")
-            continue
+#         map_results = run_on_map(map_path)
+#         summary[map_name] = map_results
 
-        map_results = run_on_map(map_path)
-        summary[map_name] = map_results
-
-    #  In bảng tổng hợp hiệu năng
-    print("\n=== TỔNG KẾT HIỆU NĂNG ===")
-    for map_name, map_results in summary.items():
-        print(f"\n>>> {map_name}")
-        print("-" * 70)
-        print(f"{'Heuristic':15} | {'Nodes':>8} | {'Frontier':>8} | {'Steps':>6} | {'Time':>7}")
-        print("-" * 70)
-        for hname, stats in map_results.items():
-            print(f"{hname:15} | {stats['nodes_expanded']:8} | {stats['max_frontier_size']:8} | "
-                  f"{stats['path_length']:6} | {stats['time']:.3f}s")
+#     #  In bảng tổng hợp hiệu năng
+#     print("\n=== TỔNG KẾT HIỆU NĂNG ===")
+#     for map_name, map_results in summary.items():
+#         print(f"\n>>> {map_name}")
+#         print("-" * 70)
+#         print(f"{'Heuristic':15} | {'Nodes':>8} | {'Frontier':>8} | {'Steps':>6} | {'Time':>7}")
+#         print("-" * 70)
+#         for hname, stats in map_results.items():
+#             print(f"{hname:15} | {stats['nodes_expanded']:8} | {stats['max_frontier_size']:8} | "
+#                   f"{stats['path_length']:6} | {stats['time']:.3f}s")
 
 
 # ---  Entry Point ---
-if __name__ == "__main__":
-    run_all_experiments()
+# if __name__ == "__main__":
+#     run_all_experiments()

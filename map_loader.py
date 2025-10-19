@@ -219,9 +219,6 @@ def successors(
     # --- Teleport giữa các góc ---
     if state.pos in corners:
         all_corners = sorted(list(corners)) # Sắp xếp để có thứ tự cố định (TL, TR, BL, BR)
-                
-        # Giả định 4 góc được sắp xếp theo thứ tự (y, x): 
-        # C0: Top-Left, C1: Top-Right, C2: Bottom-Left, C3: Bottom-Right
         
         target_corner = None
         
@@ -252,50 +249,62 @@ def successors(
 
     return successors_list
 
-def rotate_map_data(
-    grid: List[str], pacman_pos: Tuple[int, int], foods_list: List[Tuple[int, int]],
-    pies_set: Set[Tuple[int, int]], initial_ghosts: List[Tuple[int, int]],
-    exit_pos: Tuple[int, int], corners: Set[Tuple[int, int]]
-):
+def rotate_map_180(
+    grid: List[str], 
+    pacman_pos: Tuple[int, int], 
+    pies_set: Set[Tuple[int, int]], 
+    initial_ghosts: List[Tuple[int, int]],
+    exit_pos: Tuple[int, int], 
+    corners: Set[Tuple[int, int]],
+    foods_map: Dict[Tuple[int, int], int], 
+    foods_list: List[Tuple[int, int]]
+) -> Tuple[
+    List[str], Tuple[int, int], Set[Tuple[int, int]], List[Tuple[int, int]],
+    Tuple[int, int], Set[Tuple[int, int]], Dict[Tuple[int, int], int], List[Tuple[int, int]]
+]:
     """
-    Xoay toàn bộ dữ liệu bản đồ 90 độ sang phải để phục vụ replanning.
+    Xoay lưới và các tọa độ 180 độ. (y, x) -> (R - 1 - y, C - 1 - x).
     """
-    height = len(grid)
-    width = len(grid[0])
-
-    # SỬA LỖI TẠI ĐÂY:
-    # Khởi tạo grid mới với kích thước chính xác: 'width' hàng và 'height' cột.
-    # Cấu trúc: [[value for _ in range(COLS)] for _ in range(ROWS)]
-    new_grid = [['' for _ in range(height)] for _ in range(width)]
-
-    # Hàm tiện ích để xoay một tọa độ
+    R = len(grid) # Chiều cao
+    C = len(grid[0]) # Chiều rộng
+    
+    # 1. Xoay lưới (Grid)
+    # Xoay 180 độ = đảo ngược thứ tự các hàng, và đảo ngược các ký tự trong mỗi hàng.
+    new_grid = [row[::-1] for row in grid[::-1]]
+    
+    # 2. Hàm tiện ích để xoay một tọa độ
     def rotate_coord(y, x):
-        # (y, x) -> (x, height - 1 - y)
-        return x, height - 1 - y
+        # (y, x) -> (R - 1 - y, C - 1 - x)
+        new_y = R - 1 - y
+        new_x = C - 1 - x
+        return (new_y, new_x)
 
-    # Lặp qua grid cũ và điền vào grid mới ở vị trí đã xoay
-    for r in range(height):
-        for c in range(width):
-            new_r, new_c = rotate_coord(r, c)
-            new_grid[new_r][new_c] = grid[r][c]
-
-    # Xoay tọa độ của tất cả các đối tượng
+    # 3. Áp dụng cho tất cả các tọa độ
     new_pacman_pos = rotate_coord(*pacman_pos)
     new_exit_pos = rotate_coord(*exit_pos)
+    
     new_pies_set = {rotate_coord(*pos) for pos in pies_set}
     new_corners = {rotate_coord(*pos) for pos in corners}
+    
     new_initial_ghosts = [rotate_coord(*pos) for pos in initial_ghosts]
     new_foods_list = [rotate_coord(*pos) for pos in foods_list]
 
-    # Tạo lại các cấu trúc phụ thuộc trên bản đồ mới
-    new_foods_list.sort()
-    new_foods_map = {pos: i for i, pos in enumerate(new_foods_list)}
-    new_ghost_paths = _calculate_ghost_paths(new_initial_ghosts, new_grid)
-
-    print("Bản đồ đã được xoay 90 độ!")
+    # 4. Cập nhật Foods Map mới (key là tọa độ)
+    num_foods = len(foods_list)
+    new_foods_list = [None] * num_foods
+    new_foods_map = {}
+    
+    # Xoay từng tọa độ food theo thứ tự index cũ
+    for old_pos, index in foods_map.items():
+        new_pos = rotate_coord(*old_pos)
+        
+        # Đảm bảo new_foods_list giữ nguyên thứ tự bitmask (index)
+        new_foods_list[index] = new_pos
+        
+        # Cập nhật foods_map mới
+        new_foods_map[new_pos] = index
     return (new_grid, new_pacman_pos, new_pies_set, new_initial_ghosts,
-            new_exit_pos, new_corners, new_foods_map, new_foods_list, new_ghost_paths)
-
+            new_exit_pos, new_corners, new_foods_map, new_foods_list)
 # --- KHỐI THỰC THI CHÍNH ĐỂ KIỂM TRA ---
 if __name__ == '__main__':
     maps_folder = 'maps'
@@ -309,26 +318,26 @@ if __name__ == '__main__':
         ghost_paths = _calculate_ghost_paths(ghosts, grid)
 
         # --- Test 1: Teleport ---
-        print("\n--- TEST 1: DỊCH CHUYỂN GÓC (TELEPORT) ---")
+        #print("\n--- TEST 1: DỊCH CHUYỂN GÓC (TELEPORT) ---")
         corner_pos = list(corners)[0]
         state_at_corner = State(pos=corner_pos, pie_time=0, foods_mask=0, total_steps=10)
-        print(f"Pacman đang ở góc {state_at_corner.pos}. Các bước đi hợp lệ:")
+        #print(f"Pacman đang ở góc {state_at_corner.pos}. Các bước đi hợp lệ:")
         teleport_moves = successors(state_at_corner, grid, pies, ghosts, ghost_paths, foods_map, corners)
         for move in teleport_moves:
             print(f"  - Hành động: {move[0]}")
 
         # --- Test 2: Map Rotation ---
-        print("\n--- TEST 2: XOAY BẢN ĐỒ ---")
-        print(f"Vị trí Pacman ban đầu: {pacman_start}")
-        print(f"Vị trí cổng thoát ban đầu: {game_exit}")
+        # print("\n--- TEST 2: XOAY BẢN ĐỒ ---")
+        # print(f"Vị trí Pacman ban đầu: {pacman_start}")
+        # print(f"Vị trí cổng thoát ban đầu: {game_exit}")
 
         # Giả lập hành động xoay bản đồ
         (rotated_grid, rotated_pacman, _, _, rotated_exit,
-         _, _, _, _) = rotate_map_data(
+         _, _, _, _) = rotate_map_180(
             grid, pacman_start, foods_list, pies, ghosts, game_exit, corners
         )
-        print(f"Vị trí Pacman sau khi xoay: {rotated_pacman}")
-        print(f"Vị trí cổng thoát sau khi xoay: {rotated_exit}")
+        # print(f"Vị trí Pacman sau khi xoay: {rotated_pacman}")
+        # print(f"Vị trí cổng thoát sau khi xoay: {rotated_exit}")
 
     except (FileNotFoundError, ValueError) as e:
 

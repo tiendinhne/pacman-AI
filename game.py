@@ -1,9 +1,10 @@
+import ast
 import pygame, time, heapq, argparse, sys, random
-from typing import List, Tuple, Optional
+from typing import  Optional
 
 from map_loader import (
     load_map, _calculate_ghost_paths, get_ghost_positions,
-    successors, State, is_goal
+    successors, State, is_goal, rotate_map_180
 )
 from Heristics import heuristic_food_mst
 from pacman_sprite import PacmanSprite
@@ -77,8 +78,9 @@ class AStarSolver:
 class GameController:
     def __init__(self, map_path: str, mode: str = "manual"):
         assert mode in ("manual", "auto")
-        self.total_cost = 0 # <<< THÊM: Tổng chi phí tích lũy >>>
+        self.total_cost = 0 # Tổng chi phí tích lũy
         self.executed_actions = []
+        self.current_steps = 0
         pygame.init()
 
         # Load map + components
@@ -104,8 +106,8 @@ class GameController:
         pygame.display.set_caption("Pacman - Task2 ")
 
         # Font & Clock
-        self.font = pygame.font.SysFont(None, 18)
-        self.bigfont = pygame.font.SysFont(None, 28)
+        self.font = pygame.font.Font("assets/fonts/PressStart2P.ttf", 10)
+        self.bigfont = pygame.font.Font("assets/fonts/PressStart2P.ttf", 28)
         self.clock = pygame.time.Clock()
 
         # Sprite
@@ -186,7 +188,7 @@ class GameController:
 
         # HUD (bottom bar)
         pygame.draw.rect(s, (18, 18, 18), (0, self.win_h - 48, self.win_w, 48))
-        info = f"MODE:{self.mode.upper()}  SCORE:{self.state.total_steps}  PIE:{self.state.pie_time}  FOODS:{bin(self.state.foods_mask).count('1')}"
+        info = f"MODE:{self.mode.upper()}  SCORE:{self.state.total_steps}  PIE'S STEP:{self.state.pie_time}  FOODS:{bin(self.state.foods_mask).count('1')}"
         s.blit(self.font.render(info, True, (230, 230, 230)), (8, self.win_h - 42))
 
         if self.astar_stats:
@@ -244,6 +246,7 @@ class GameController:
                         self.sprite.direction = 'right' 
                     elif act in ("UP", "DOWN", "LEFT", "RIGHT"):
                         self.sprite.direction = {"UP": "up", "DOWN": "down", "LEFT": "left", "RIGHT": "right"}[act]
+                self.current_steps += 1
                 return True
         return False
     
@@ -353,6 +356,39 @@ class GameController:
                         self.message = f"MODE: {self.mode.upper()}"
                         self.message_time = time.time()
 
+            # <<< PHẦN THÊM MỚI: KIỂM TRA VÀ XOAY MAP MỖI 30 BƯỚC >>>
+            # ----------------------------------------------
+            if self.current_steps > 0 and self.current_steps % 30 == 0:
+                print(f"BƯỚC {self.current_steps}: Xoay bản đồ 180 độ!")
+                
+                # 1. Thực hiện xoay map 180 độ
+                self.grid, new_pacman_pos, self.pies, self.ghosts, \
+                self.exit_pos, self.corners, self.foods_map, self.foods_list = \
+                    rotate_map_180(
+                        self.grid, self.state.pos, self.pies, self.ghosts, 
+                        self.exit_pos, self.corners, self.foods_map, self.foods_list
+                    )
+                
+                # 2. Cập nhật trạng thái Pacman
+                self.state = State(
+                    pos=new_pacman_pos,
+                    pie_time=self.state.pie_time,
+                    foods_mask=self.state.foods_mask,
+                    total_steps=self.state.total_steps
+                )
+                
+                # 3. Tái tính toán Ghost Paths và Solver
+                self.ghost_paths = _calculate_ghost_paths(self.ghosts, self.grid)
+                self.solver = AStarSolver(
+                    self.grid, self.pies, self.ghosts, self.ghost_paths, 
+                    self.foods_map, self.foods_list, self.corners, self.exit_pos
+                )
+                
+                # 4. Xóa plan A* cũ
+                self.plan = [] 
+                
+                # 5. Reset bộ đếm xoay map
+                self.current_steps = 0
             # update according to mode
             if self.mode == "manual":
                 self.step_manual()
@@ -392,7 +428,7 @@ class GameController:
 
 # ---------- MAIN ----------
 def main():
-    parser = argparse.ArgumentParser(description="Pacman Task2 - fixed v5")
+    parser = argparse.ArgumentParser(description="Pacman Task2 ")
     parser.add_argument("--map", type=str, default="maps/task02_pacman_example_map.txt")
     parser.add_argument("--mode", type=str, default="manual", choices=["manual", "auto"])
     args = parser.parse_args()
@@ -407,7 +443,3 @@ def main():
         sys.exit(1)
 
     game.run()
-
-
-# if __name__ == "__main__":
-#     main()
