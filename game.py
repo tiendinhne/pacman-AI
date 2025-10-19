@@ -77,6 +77,8 @@ class AStarSolver:
 class GameController:
     def __init__(self, map_path: str, mode: str = "manual"):
         assert mode in ("manual", "auto")
+        self.total_cost = 0 # <<< THÊM: Tổng chi phí tích lũy >>>
+        self.executed_actions = []
         pygame.init()
 
         # Load map + components
@@ -223,13 +225,18 @@ class GameController:
         remove pie if present, update sprite direction, and return True.
         """
         succs = successors(self.state, self.grid, self.pies, self.ghosts, self.ghost_paths, self.foods_map, self.corners)
-        for a_str, new_state, _ in succs:
+        
+        for a_str, new_state, cost in succs:
             # direct match or teleport-match (compare parsed targets)
             if a_str == act or (a_str.startswith("TELEPORT") and act.startswith("TELEPORT") and self._parse_target(a_str) == self._parse_target(act)):
                 self.state = new_state
                 # remove pie if Pacman landed on it
                 if self.state.pos in self.pies:
                     self.pies.discard(self.state.pos)
+                action_name = self.map_action_name(act) # Lấy tên hành động đã chuẩn hóa
+                if action_name is not None: # KIỂM TRA NẾU KHÔNG PHẢI TELEPORT
+                    self.executed_actions.append(action_name)
+                self.total_cost += cost # Tích lũy chi phí
                 # update sprite direction on normal moves
                 if self.sprite:
                     if act.startswith("TELEPORT"):
@@ -239,6 +246,17 @@ class GameController:
                         self.sprite.direction = {"UP": "up", "DOWN": "down", "LEFT": "left", "RIGHT": "right"}[act]
                 return True
         return False
+    
+    def map_action_name(self, act: str) -> str:
+        mapping = {
+            "UP": "North", "DOWN": "South", "LEFT": "West", "RIGHT": "East", "STOP": "Stop"
+        }
+        if act in mapping:
+            return mapping[act]
+        elif act.startswith("TELEPORT"):
+            # Trả về Teleport (hoặc Teleport to (y, x) nếu bạn muốn chi tiết hơn)
+            return None 
+        return act # Mặc định nếu không xác định
 
 
     # ---------- MANUAL STEP ----------
@@ -301,7 +319,10 @@ class GameController:
                 # plan invalidated (ghosts moved into path etc.) — drop plan and replan next loop
                 self.plan = []
             self.last_auto = now
-
+        
+        if self.plan:
+            self.plan_index = 0
+            self.message = f"Found plan with cost"
 
     # ---------- CHECK END / COLLISION ----------
     def check_end_and_collision(self) -> Optional[str]:
@@ -365,6 +386,7 @@ class GameController:
             self.draw()
             self.clock.tick(FPS)
 
+        print(f"List of actions ({', '.join(self.executed_actions)}); total cost {self.total_cost}")
         pygame.quit()
 
 
@@ -387,5 +409,5 @@ def main():
     game.run()
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
