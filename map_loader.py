@@ -218,30 +218,37 @@ def successors(
 
     # --- Teleport giữa các góc ---
     if state.pos in corners:
-        for target_corner in corners:
-            if state.pos == target_corner:
-                continue
-
-            ty, tx = target_corner
-            # kiểm tra target corner hợp lệ trong grid
-            if not (0 <= ty < rows and 0 <= tx < len(grid[ty])):
-                continue
-
-            # Nếu có ma ở điểm đến và không có pie -> bỏ qua
+        all_corners = sorted(list(corners)) # Sắp xếp để có thứ tự cố định (TL, TR, BL, BR)
+                
+        # Giả định 4 góc được sắp xếp theo thứ tự (y, x): 
+        # C0: Top-Left, C1: Top-Right, C2: Bottom-Left, C3: Bottom-Right
+        
+        target_corner = None
+        
+        if state.pos == all_corners[0]:  # Top-Left (C0) -> Bottom-Right (C3)
+            target_corner = all_corners[3]
+        elif state.pos == all_corners[3]:  # Bottom-Right (C3) -> Top-Left (C0)
+            target_corner = all_corners[0]
+        elif state.pos == all_corners[1]:  # Top-Right (C1) -> Bottom-Left (C2)
+            target_corner = all_corners[2]
+        elif state.pos == all_corners[2]:  # Bottom-Left (C2) -> Top-Right (C1)
+            target_corner = all_corners[1]
+            
+        
+        if target_corner:
+            # Va chạm ma (nếu không có pie)
             if state.pie_time == 0 and target_corner in ghosts_next_positions:
-                continue
+                pass # Bỏ qua nếu có ma ở điểm đến
+            else:
+                # pie_time giảm 1
+                new_pie_time = max(0, state.pie_time - 1)
+                new_foods_mask = state.foods_mask
 
-            # pie_time giảm 1 (theo thiết kế hiện tại)
-            new_pie_time = max(0, state.pie_time - 1)
-            new_foods_mask = state.foods_mask
+                new_state = State(target_corner, new_pie_time, new_foods_mask, next_step)
 
-            new_state = State(target_corner, new_pie_time, new_foods_mask, next_step)
-
-            # tránh duplicate khi teleport trùng với move bình thường
-            if any(s[1].pos == target_corner for s in successors_list):
-                continue
-
-            successors_list.append((f'TELEPORT to {target_corner}', new_state, 1))
+                # Kiểm tra tránh trùng lặp nếu teleport trùng với move bình thường (thường không xảy ra)
+                if not any(s[1].pos == target_corner for s in successors_list):
+                    successors_list.append((f'TELEPORT to {target_corner}', new_state, 1))
 
     return successors_list
 

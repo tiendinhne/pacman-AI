@@ -1,2 +1,3 @@
-    ghost_positions_raw = get_ghost_positions(current_state.total_steps, ghosts, ghost_paths)
-    ghost_positions = list(ghost_positions_raw)  # giữ thứ tự
+if self.sprite and act in ("UP", "DOWN", "LEFT", "RIGHT"):
+                    self.sprite.direction = {"UP": "up", "DOWN": "down", "LEFT": "left", "RIGHT": "right"}[act]
+                    #self.sprite.update()

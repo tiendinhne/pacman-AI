@@ -1,4 +1,4 @@
-import pygame, time, heapq, argparse, sys, ast
+import pygame, time, heapq, argparse, sys, random
 from typing import List, Tuple, Optional
 
 from map_loader import (
@@ -99,7 +99,7 @@ class GameController:
         self.cols, self.rows = len(self.grid[0]), len(self.grid)
         self.win_w, self.win_h = self.cols * TILE_SIZE, self.rows * TILE_SIZE + 48
         self.screen = pygame.display.set_mode((self.win_w, self.win_h))
-        pygame.display.set_caption("Pacman - Task2 (fixed v5)")
+        pygame.display.set_caption("Pacman - Task2 ")
 
         # Font & Clock
         self.font = pygame.font.SysFont(None, 18)
@@ -111,6 +111,12 @@ class GameController:
             self.sprite = PacmanSprite(tile_size=TILE_SIZE)
         except Exception:
             self.sprite = None
+        try:
+            ghost_img = pygame.image.load("assets/ghosts/inky.png").convert_alpha()
+            self.ghost_img = pygame.transform.scale(ghost_img, (TILE_SIZE, TILE_SIZE))
+        except Exception:
+            # Xử lý nếu ảnh không tồn tại
+            self.ghost_img = None       
 
         # State init
         foods_mask = (1 << len(self.foods_list)) - 1
@@ -135,7 +141,7 @@ class GameController:
         # walls/background
         for r, row in enumerate(self.grid):
             for c, ch in enumerate(row):
-                color = (40, 40, 120) if ch == '%' else (8, 8, 8)
+                color = (0,0,170) if ch == '%' else (8, 8, 8)
                 pygame.draw.rect(s, color, (c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE))
 
         # foods
@@ -147,11 +153,11 @@ class GameController:
         # pies
         for (py, px) in list(self.pies):
             pygame.draw.circle(s, (180, 0, 200),
-                               (px * TILE_SIZE + TILE_SIZE // 2, py * TILE_SIZE + TILE_SIZE // 2), 6)
+                               (px * TILE_SIZE + TILE_SIZE // 2, py * TILE_SIZE + TILE_SIZE // 2), 10)
 
         # exit
         ey, ex = self.exit_pos
-        pygame.draw.rect(s, (0, 200, 0),
+        pygame.draw.rect(s, (255, 255, 255),
                          (ex * TILE_SIZE + 4, ey * TILE_SIZE + 4, TILE_SIZE - 8, TILE_SIZE - 8))
 
         # teleports (corners)
@@ -159,10 +165,10 @@ class GameController:
             pygame.draw.rect(s, (0, 120, 255),
                              (cx * TILE_SIZE + 2, cy * TILE_SIZE + 2, TILE_SIZE - 4, TILE_SIZE - 4), 2)
 
-        # ghosts (independent timer)
-        for (gy, gx) in get_ghost_positions(self.ghost_step_counter, self.ghosts, self.ghost_paths):
-            pygame.draw.circle(s, (255, 80, 80),
-                               (gx * TILE_SIZE + TILE_SIZE // 2, gy * TILE_SIZE + TILE_SIZE // 2), TILE_SIZE // 2 - 3)
+        if self.ghost_img:
+            for (gy, gx) in get_ghost_positions(self.ghost_step_counter, self.ghosts, self.ghost_paths):
+                s.blit(self.ghost_img, (gx * TILE_SIZE, gy * TILE_SIZE))
+
 
         # pacman
         py, px = self.state.pos
@@ -188,7 +194,7 @@ class GameController:
         pygame.draw.rect(s, (60, 60, 60), self.btn_rect)
         pygame.draw.rect(s, (200, 200, 200), self.btn_rect, 2)
         s.blit(self.font.render("TOGGLE MODE", True, (255, 255, 255)),
-               (self.btn_rect.x + 16, self.btn_rect.y + 6))
+               (self.btn_rect.x + 30 , self.btn_rect.y+6))
 
         if self.message and time.time() - self.message_time < 3:
             t = self.bigfont.render(self.message, True, (255, 230, 0))
@@ -225,9 +231,12 @@ class GameController:
                 if self.state.pos in self.pies:
                     self.pies.discard(self.state.pos)
                 # update sprite direction on normal moves
-                if self.sprite and act in ("UP", "DOWN", "LEFT", "RIGHT"):
-                    self.sprite.direction = {"UP": "up", "DOWN": "down", "LEFT": "left", "RIGHT": "right"}[act]
-                    self.sprite.update()
+                if self.sprite:
+                    if act.startswith("TELEPORT"):
+                        # <<< PHẦN NÀY PHẢI CÓ >>>
+                        self.sprite.direction = 'right' 
+                    elif act in ("UP", "DOWN", "LEFT", "RIGHT"):
+                        self.sprite.direction = {"UP": "up", "DOWN": "down", "LEFT": "left", "RIGHT": "right"}[act]
                 return True
         return False
 
@@ -235,6 +244,30 @@ class GameController:
     # ---------- MANUAL STEP ----------
     def step_manual(self):
         k = pygame.key.get_pressed()
+        
+
+        moved = False
+
+
+        if self.state.pos in self.corners:
+            all_corners = sorted(list(self.corners))
+            target_corner = None
+            
+            # Gán góc đối diện (dựa trên thứ tự đã sắp xếp)
+            if self.state.pos == all_corners[0]:  # Top-Left -> Bottom-Right
+                target_corner = all_corners[3]
+            elif self.state.pos == all_corners[3]:  # Bottom-Right -> Top-Left
+                target_corner = all_corners[0]
+            elif self.state.pos == all_corners[1]:  # Top-Right -> Bottom-Left
+                target_corner = all_corners[2]
+            elif self.state.pos == all_corners[2]:  # Bottom-Left -> Top-Right
+                target_corner = all_corners[1]
+
+            if target_corner:
+                tele_act = f"TELEPORT to {target_corner}"
+                # Áp dụng hành động (apply_action sẽ kiểm tra hợp lệ và xử lý sprite)
+                if self.apply_action(tele_act):
+                    teleported = True
         move = None
         if k[pygame.K_UP]:
             move = "UP"
@@ -243,25 +276,9 @@ class GameController:
         elif k[pygame.K_LEFT]:
             move = "LEFT"
         elif k[pygame.K_RIGHT]:
-            move = "RIGHT"
-
-        moved = False
+            move = "RIGHT" 
         if move:
-            moved = self.apply_action(move)
-
-        # manual teleport via 'T' key when standing on a corner
-        if k[pygame.K_t]:
-            if self.state.pos in self.corners:
-                targets = [c for c in sorted(self.corners) if c != self.state.pos]
-                if targets:
-                    targ = targets[0]
-                    tele_act = f"TELEPORT to {targ}"
-                    if self.apply_action(tele_act):
-                        moved = True
-
-        # IMPORTANT: do NOT increment total_steps or decrement pie_time here when Pacman didn't move.
-        # successors() already set pie_time/total_steps for valid moves applied in apply_action.
-
+            moved = self.apply_action(move)      
     # ---------- AUTO STEP (A*) ----------
     def step_auto(self, now: float):
         # plan if empty
@@ -326,6 +343,9 @@ class GameController:
                 self.ghost_step_counter += 1
                 self.last_ghost_move = now
 
+            #cap nhat frame moi loop
+            if self.sprite:
+                self.sprite.update()
             # check end / collision
             res = self.check_end_and_collision()
             if res == "win":
